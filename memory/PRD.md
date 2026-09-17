@@ -1,5 +1,43 @@
 # PRD — CV. Dewi Aditya ERP
 
+## SESI 2026-09-17 — Go-Live Data: BOM_AKSESORIS diterapkan + Laporan Sisa (repo `kakkahshd/DA` @ `7404c52`)
+
+### Permintaan asli (ringkas)
+Hanya BOM_AKSESORIS yang diterapkan; sheet lain menjadi catatan kekurangan. Importir diperkeras (ganti utuh per
+model+varian, tanpa tebakan warna, normalisasi satuan, validasi kode, flag HPP, idempoten 2×), LAPORAN_SISA_DA.xlsx
+per kategori, DATA_YANG_PERLU_DIISI_DA.xlsx diregenerasi, tombol "Terapkan (hanya BOM)". Fase 4 (VPS) oleh user.
+Keputusan A–D dianggap disetujui. Commit `WIP: simpan progress saya` hanya yarn.lock → dibangun di atasnya.
+
+### Yang dikerjakan
+- **Fase 0**: clone → /app, deps (pin `emergentintegrations`/`litellm` konflik → dilewati, sudah ada di image), build statis.
+  Workbook klien & backup VPS **tidak tersedia** (staging mati; user belum kirim) → baseline preview **DIREKONSTRUKSI**
+  dari berkas gap user (`scripts/reconstruct_baseline_from_gap.py` → `import_master_template.py --apply` + sync):
+  104 model · 645 varian · 1160 material · 7 toko · **0 BOM kain**, `pack_size` tak diketahui (A-LBL-0004=600 diset utk uji).
+  Snapshot `private/golive/baseline_rekonstruksi.archive.gz`. Angka preview ≠ VPS sampai backup/workbook tersedia.
+- **Fase 1** (`core/bom_fill.py` v3): kategori isu terstruktur (`bom_issues`, 8 kategori), ganti utuh aksesoris per
+  (model, varian) — kain & potongan dipertahankan, model di luar berkas tak disentuh; tanpa tebakan warna; alias satuan
+  (Meter/m→m, cm→m, Roll/TRL→roll, Pack/Bks→pack, PCS→pcs, gross) & `F`/`botol` ditolak; pcs→roll/pack hanya via
+  `pack_size`; kode tak dikenal + saran mirip; `flag_hpp_validation` → `rahaza_models.hpp_validation`.
+  `apply_fill(scope="bom")` + `POST fill-apply?scope=bom` (kesalahan sheet lain tidak menghalangi).
+  `scripts/verify_bom_idempotent.py` → LULUS (408 BOM, apply #2 = 0 perubahan, model luar berkas 0 berubah).
+- **Fase 2** (`core/laporan_sisa.py`, `POST /api/rahaza/master/laporan-sisa` file opsional): RINGKASAN, 1_MODEL_TANPA_SKU,
+  VARIAN_BARU, 2_KELOMPOK_TANPA_VARIAN, 3_SATUAN_KODE_TAK_VALID, 4_WARNA_TAK_DIKENAL, 5_MATERIAL_HARGA_0, 6_HARGA_JUAL_SKU
+  (laporan saja), 7_LAINNYA (berat/toko/rekening/gaji), 8_HPP_BELUM_TERVALIDASI. UI `RahazaMasterFillModule.jsx`: 4 langkah,
+  Terapkan (hanya BOM) / semua sheet, unduh Laporan Sisa, chip kategori. Papan Kelengkapan: "HPP tervalidasi" + `hpp_unvalidated`.
+- **Fase 3** (berkas user v2: 793 baris/241 kelompok/104 model, 202 kelompok tanpa varian): diterapkan di preview →
+  85 kelompok · 58 model, 782 baris aksesoris, 77 BOM dasar. Kelengkapan BOM 104→47, aksesoris 104→46, HPP belum tervalidasi 62.
+  Laporan: 20 model tanpa SKU (38 baris VARIAN_BARU), 21 model kelompok tanpa varian (103 kelompok), 470 baris tak valid
+  (mayoritas pcs→roll/pack tanpa isi kemasan — artefak baseline), warna tak dikenal maroon/Grey, 87 material harga 0,
+  HARGA_JUAL_SKU 18 saran/0 ambigu/30 "sudah tidak dijual", berat 104, TOKO 7/7 default, REKENING 20.
+  Testing agent iter 214: backend 11/11, UI 100%. Berkas: `/api/uploads/LAPORAN_SISA_DA.xlsx`, `/api/uploads/DATA_YANG_PERLU_DIISI_DA_terbaru.xlsx`.
+
+### Backlog
+- P0 (user, Fase 4): Save to GitHub → VPS `bash deploy/backup.sh` → `bash deploy/update.sh` → unggah via Portal → Terapkan (hanya BOM). `vps_timpa_snapshot.sh` TIDAK dipakai.
+- P0: backup VPS / workbook klien untuk baseline preview yang identik (pack_size, BOM kain).
+- P1: sheet MATERIAL (87 harga 0 + isi kemasan) → HPP tervalidasi; importir VARIAN_BARU untuk 20 model tanpa SKU.
+- P2: kolom varian 21 model banyak-kelompok; verifikasi 30 SKU "sudah tidak dijual".
+
+
 ## SESI 2026-09-12 — CONTAINER BARU: setup preview dari GitHub + impor master NYATA + verifikasi P0 selisih
 
 ### Permintaan asli
